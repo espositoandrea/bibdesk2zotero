@@ -11,6 +11,7 @@
 #
 
 import os
+import argparse
 import re
 import sys
 import base64
@@ -23,24 +24,37 @@ from pybtex.utils import OrderedCaseInsensitiveDict
 
 
 def main():
-    if len(sys.argv) != 3:
-        sys.exit('Usage: bibdesk2zotero.py citations.db /path/to/files > citations-new.db')
+    parser = argparse.ArgumentParser(description='A utility for rewriting'
+                                     ' BibDesk BibTeX files so that they can'
+                                     ' be read by Zotero with the file'
+                                     ' references intact')
+    parser.add_argument('database',
+                        help="The BibDesk BibTeX file",
+                        type=argparse.FileType('r'),
+                        default=sys.stdin,
+                        nargs='?')
+    parser.add_argument('--path', '-p',
+                        help="Path to the root folder for file searching",
+                        type=pathlib.Path)
+    parser.add_argument('--out', '-o',
+                        help="Output file",
+                        type=argparse.FileType('w'),
+                        default=sys.stdout)
+    args = parser.parse_args()
+    if args.path is None:
+        if args.database is sys.stdin:
+            raise parser.error("Cannot guess path from stdin. Please specify"
+                               " --path")
+        args.path = pathlib.Path(args.database.name).parent.absolute()
 
-    bib_file = sys.argv[1]
-
-    if not os.path.isfile(bib_file):
-        sys.exit('{} is not a file'.format(bib_file))
-
-    base_dir = pathlib.Path(sys.argv[2])
-    if not os.path.isdir(base_dir):
-        sys.exit('{} is not a directory'.format(base_dir))
-
-    new_bib = convert(bib_file, base_dir)
-    print(new_bib)
+    new_bib = convert(args.database, args.path)
+    print(new_bib, file=args.out)
+    args.database.close()
+    args.out.close()
 
 
 def convert(bib_file, base_dir):
-    db = pybtex.database.parse_file(bib_file)
+    db = pybtex.database.parse_file(bib_file, bib_format="bibtex")
 
     for key in db.entries:
         entry = db.entries[key]
